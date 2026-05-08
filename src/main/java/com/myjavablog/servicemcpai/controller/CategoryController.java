@@ -29,4 +29,9 @@ public class CategoryController {
     public Category classifyCategory(@RequestParam String description) {
         return categoryService.guessCategory(description);
     }
+
+    @GetMapping("/categories/ai-classifications")
+    public List<Category> classifyCategories(@RequestParam List<String> descriptions) {
+        return categoryService.guessCategories(descriptions);
+    }
 }

@@ -1,6 +1,7 @@
 package com.myjavablog.servicemcpai.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.myjavablog.servicemcpai.model.AiCategoryListResponse;
 import com.myjavablog.servicemcpai.model.AiCategoryResponse;
 import com.myjavablog.servicemcpai.model.Category;
 import com.myjavablog.servicemcpai.repository.CategoryRepository;
@@ -30,7 +31,6 @@ public class CategoryService {
     public List<Category> listCategories() {
         return categoryRepository.listCategories();
     }
-
     public Category guessCategory(String description) {
 
         BeanOutputConverter<AiCategoryResponse> converter = new BeanOutputConverter<>(AiCategoryResponse.class);
@@ -84,11 +84,88 @@ public class CategoryService {
         Prompt prompt = new Prompt(promptContent, options);
 
         var response = anthropicChatModel.call(prompt);
-        Long categoryId = converter.convert(response.getResult().getOutput().getText()).id();
+        Long categoryId = converter.convert(response.getResult().getOutput().getText()).categoryId();
 
         return listCategories().stream()
                 .filter(category -> category.id().equals(categoryId))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    public List<Category> guessCategories(List<String> descriptions) {
+
+        BeanOutputConverter<AiCategoryListResponse> converter = new BeanOutputConverter<>(AiCategoryListResponse.class);
+
+        AnthropicChatOptions options = AnthropicChatOptions.builder()
+                .model("claude-sonnet-4-5") // using the most capable model to get the best results
+                .maxTokens(500) // helps to manage cost by limiting the quantity of tokens
+                .temperature(0.0) // makes the answer closer to deterministic
+                .build();
+
+        String promptContent;
+        try {
+            promptContent = """
+                            You are a financial transaction classifier. You will analyze the parsed transactions and define what should be the category for each one.
+                            
+                            # Input Transaction
+                            %s
+                            
+                            # Instructions
+                            - You must classify each transaction from the **Input Transactions** list
+                          - Category is mandatory, so, make the most educated guess, however, there will be cases where an assumption should be made.
+                          - Your output contains:
+                            * categoryId, with is a long that must match the list of **System Candidates Categories**
+                            * sourceDescription: the original transaction text exactly as provided in the input
+                            * observation: an optional String that you should inform additional notes or rational behind the chosen category.
+
+                            
+                            # Output Rules
+                            - Respond with ONLY a raw JSON object. Nothing else.
+                            - Do NOT use markdown, code fences, backticks, or triple backticks.
+                            - Do NOT wrap your response in ```json or ```
+                            - Do NOT add explanations, summaries, or any text outside the JSON.
+                            - Your entire response must start with '{' and end with '}'.
+                            - It must be directly parseable by JSON.parse() with zero pre-processing.
+                            
+                            # System Categories
+                            %s
+                            
+                            # Required Output Format
+                            {"categories": [
+                                {"categoryId": <Long>, "sourceDescription": "<transaction description>", "observation": "<reasoning>"},
+                                {"categoryId": <Long>, "sourceDescription": "<transaction description>", "observation": "<reasoning>"}
+                            ]}
+                                        
+                            # Example
+                            Input: ["Netflix subscription", "Indigo flight to Mumbai"]
+                            Output: {"categories": [
+                                {"categoryId": 6, "sourceDescription": "Netflix subscription", "observation": "Streaming service, matches Entertainment."},
+                                {"categoryId": 3, "sourceDescription": "Indigo flight to Mumbai", "observation": "Airline, matches Travel."}
+                            ]}
+                    """.formatted(
+                    descriptions.stream().map(d -> " - `" + d + "`").reduce((a, b) -> a + "\n" + b).orElse(""),
+                    objectMapper.writeValueAsString(listCategories())
+            );
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        Prompt prompt = new Prompt(promptContent, options);
+
+        var response = anthropicChatModel.call(prompt);
+        var responseObj = converter.convert(response.getResult().getOutput().getText());
+
+        return descriptions.stream()
+                .map(description -> {
+                    AiCategoryResponse current = responseObj.categories().stream()
+                            .filter(c -> description.equals(c.sourceDescription()))
+                            .findFirst()
+                            .orElseThrow();
+                    return listCategories().stream()
+                            .filter(category -> category.id() == current.categoryId())
+                            .findFirst()
+                            .orElseThrow();
+                })
+                .toList();
     }
 }
