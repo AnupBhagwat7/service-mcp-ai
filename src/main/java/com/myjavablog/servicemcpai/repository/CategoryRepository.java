@@ -22,4 +22,12 @@ public class CategoryRepository {
     public List<Category> listCategories() {
         return List.copyOf(categories);
     }
+    public Category createCategory(Category category) {
+        categories.add(category);
+        return category;
+    }
+    public void resetCategories() {
+        categories.clear();
+        categories.addAll(initialCategories);
+    }
 }
