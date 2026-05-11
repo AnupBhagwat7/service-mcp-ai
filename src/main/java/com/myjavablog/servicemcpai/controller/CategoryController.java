@@ -2,11 +2,10 @@ package com.myjavablog.servicemcpai.controller;
 
 import com.myjavablog.servicemcpai.model.Category;
 import com.myjavablog.servicemcpai.service.CategoryService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -33,5 +32,10 @@ public class CategoryController {
     @GetMapping("/categories/ai-classifications")
     public List<Category> classifyCategories(@RequestParam List<String> descriptions) {
         return categoryService.guessCategories(descriptions);
+    }
+
+    @PostMapping("/categories/ai-classifications/pdf")
+    public List<Category> classifyPdfCategories(@RequestParam("file") MultipartFile file) throws IOException {
+        return categoryService.guessCategoryPdf(file);
     }
 }

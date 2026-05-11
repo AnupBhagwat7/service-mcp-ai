@@ -6,6 +6,7 @@ import com.myjavablog.servicemcpai.model.AiCategoryResponse;
 import com.myjavablog.servicemcpai.model.Category;
 import com.myjavablog.servicemcpai.repository.CategoryRepository;
 import com.myjavablog.servicemcpai.tools.CategoryTool;
+import com.myjavablog.servicemcpai.util.FinancialStatementPdfGenerator;
 import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.anthropic.AnthropicChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -13,7 +14,12 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -197,5 +203,18 @@ public class CategoryService {
                             .orElseThrow();
                 })
                 .toList();
+    }
+
+    public List<Category> guessCategoryPdf(MultipartFile file) throws IOException {
+
+        List<String> descriptions = FinancialStatementPdfGenerator.extractDescriptions(file);
+        if (descriptions != null && !descriptions.isEmpty()) {
+            List<Category> categories = guessCategories(descriptions);
+            System.out.println("Guessed categories: " + categories);
+            return categories;
+        } else {
+            System.out.println("Failed to extract descriptions from the PDF.");
+            return Collections.emptyList();
+        }
     }
 }
